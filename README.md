@@ -1,3 +1,6 @@
+### Web Assembly Issue: https://github.com/n0-computer/iroh/issues/2799
+### Iroh Blog Post: https://www.iroh.computer/blog/iroh-and-the-web
+
 # Dumb pipe
 
 This is an example to use [iroh-net](https://crates.io/crates/iroh-net) to create a dumb pipe to connect two machines with a QUIC connection.
