@@ -12,7 +12,22 @@ works with IP addresses, dumbpipe works with 256 bit node ids and therefore is s
 
 # Installation
 
+## For Development/Testing
+
+Clone the repository and use cargo run:
+```bash
+git clone https://github.com/yourusername/dumbpipe.git
+cd dumbpipe
+cargo build
 ```
+
+For development testing, replace all `dumbpipe` commands with `cargo run --`. For example:
+```bash
+cargo run -- listen
+```
+
+## For Production Use
+```bash
 cargo install dumbpipe
 ```
 
@@ -20,76 +35,109 @@ cargo install dumbpipe
 
 ## Use dumbpipe to stream video using [ffmpeg / ffplay](https://ffmpeg.org/):
 
-This is using standard input and output.
+This example demonstrates how to create a video stream between two machines using ffmpeg and dumbpipe. The stream uses standard input/output for data transfer.
 
-### Sender side
+### Sender side (Machine A)
 
-On Mac OS:
+On Mac OS (Development):
+```bash
+# Using cargo run for development
+ffmpeg -f avfoundation -r 30 -i "0" -pix_fmt yuv420p -f mpegts - | cargo run -- listen
 ```
+
+On Mac OS (Production):
+```bash
+# Using installed dumbpipe
 ffmpeg -f avfoundation -r 30 -i "0" -pix_fmt yuv420p -f mpegts - | dumbpipe listen
 ```
+
 On Linux:
-```
+```bash
+# Using cargo run for development
+ffmpeg -f v4l2 -i /dev/video0 -r 30 -preset ultrafast -vcodec libx264 -tune zerolatency -f mpegts - | cargo run -- listen
+
+# Using installed dumbpipe
 ffmpeg -f v4l2 -i /dev/video0 -r 30 -preset ultrafast -vcodec libx264 -tune zerolatency -f mpegts - | dumbpipe listen
 ```
-outputs ticket
 
-### Receiver side
-```
-dumbpipe connect nodeealvvv4nwa522qhznqrblv6jxcrgnvpapvakxw5i6mwltmm6ps2r4aicamaakdu5wtjasadei2qdfuqjadakqk3t2ieq | ffplay -f mpegts -fflags nobuffer -framedrop -
+The command will output a ticket (a long string) that you'll need for the receiver side.
+
+### Receiver side (Machine B)
+
+Development:
+```bash
+cargo run -- connect <TICKET> | ffplay -f mpegts -fflags nobuffer -framedrop -
 ```
 
-- Adjust the ffmpeg options according to your local platform and video capture devices.
-- Use ticket from sender side
+Production:
+```bash
+dumbpipe connect <TICKET> | ffplay -f mpegts -fflags nobuffer -framedrop -
+```
+
+Replace `<TICKET>` with the ticket string from the sender side.
+
+Notes:
+- Adjust the ffmpeg options based on your local platform and video capture devices
+- The ticket is a unique identifier for the connection and must be copied from sender to receiver
+- For Mac, "0" in `-i "0"` refers to the default video device
 
 ## Forward development web server
 
-You have a development webserver running on port 3000, and want to share it with
-a colleague in another office or on the other side of the world.
+This example shows how to share a local development web server with someone outside your network.
 
-### The web server
-```
+### Step 1: Start your web server
+```bash
 npm run dev
 >    - Local:        http://localhost:3000
 ```
 
-### The dumbpipe listener
+### Step 2: Start dumbpipe listener (Machine A)
 
-*Listens* on a magic endpoint and forwards all incoming requests to the dev web
-server that is listening on localhost on port 3000. Any number of connections can
-flow through a single dumb pipe, but they will be separate local tcp connections.
-
+Development:
+```bash
+cargo run -- listen-tcp --host localhost:3000
 ```
+
+Production:
+```bash
 dumbpipe listen-tcp --host localhost:3000
 ```
-This command will output a ticket that can be used to connect.
 
-### The dumbpipe connector
+This will output a ticket string.
 
-*Listens* on a tcp interface and port on the local machine. In this case on port 3001.
-Forwards all incoming connections to the magic endpoint given in the ticket.
+### Step 3: Connect from remote machine (Machine B)
 
+Development:
+```bash
+cargo run -- connect-tcp --addr 0.0.0.0:3001 <TICKET>
 ```
-dumbpipe connect-tcp --addr 0.0.0.0:3001 <ticket>
+
+Production:
+```bash
+dumbpipe connect-tcp --addr 0.0.0.0:3001 <TICKET>
 ```
 
-### Testing it
+Replace `<TICKET>` with the ticket from Step 2.
 
-You can now browse the website on port 3001.
+### Step 4: Access the website
+On Machine B, you can now access the website at `http://localhost:3001`
 
 # Advanced features
 
 ## Custom ALPNs
 
-Dumbpipe has an expert feature to specify a custom [ALPN](https://en.wikipedia.org/wiki/Application-Layer_Protocol_Negotiation) string. You can use it to interact with
-existing iroh-net services.
+Dumbpipe supports custom [ALPN](https://en.wikipedia.org/wiki/Application-Layer_Protocol_Negotiation) strings for expert users who need to interact with existing iroh-net services.
 
-E.g. here is how to interact with the iroh-bytes
-protocol:
+Example using iroh-bytes protocol:
 
+Development:
+```bash
+echo request1.bin | cargo run -- connect <TICKET> --custom-alpn utf8:/iroh-bytes/2 > response1.bin
 ```
-echo request1.bin | dumbpipe connect <ticket> --custom-alpn utf8:/iroh-bytes/2 > response1.bin 
+
+Production:
+```bash
+echo request1.bin | dumbpipe connect <TICKET> --custom-alpn utf8:/iroh-bytes/2 > response1.bin
 ```
 
-if request1.bin contained a valid request for the `/iroh-bytes/2` protocol, response1.bin will
-now contain the response.
+If request1.bin contains a valid request for the `/iroh-bytes/2` protocol, response1.bin will contain the response.
